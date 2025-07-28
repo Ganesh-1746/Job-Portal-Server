@@ -1,0 +1,5 @@
+--INSERT INTO user (name, email, password, role)
+--SELECT 'Admin2', 'admin2@example.com',
+--       '$2a$10$DiFFmJcNuizRc685ojbj8eYeBsof6ass1j1wqornnJsIYYFMmZ8xG', -- bcrypt('admin123')
+--       'ADMIN'
+--WHERE NOT EXISTS (SELECT 1 FROM user WHERE email = 'admin2@example.com');
