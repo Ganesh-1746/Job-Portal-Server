@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Prevent secrets from being tracked
+src/main/resources/application-secret.properties
