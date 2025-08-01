@@ -28,16 +28,13 @@ public class MinioService {
     @PostConstruct
     public void init() {
         try {
-            boolean found = minioClient.bucketExists(
-                    BucketExistsArgs.builder().bucket(primaryBucketName).build()
-            );
+            boolean found = minioClient.bucketExists(BucketExistsArgs.builder().bucket(primaryBucketName).build());
             if (!found) {
-                minioClient.makeBucket(
-                        MakeBucketArgs.builder().bucket(primaryBucketName).build()
-                );
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(primaryBucketName).build());
             }
         } catch (Exception e) {
-            throw new RuntimeException("Could not initialize bucket: " + e.getMessage());
+            System.err.println("⚠️ MinIO bucket check failed: " + e.getMessage());
+            // optionally: don't throw to prevent crash
         }
     }
 
