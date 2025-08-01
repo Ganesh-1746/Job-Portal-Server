@@ -11,6 +11,7 @@ import com.example.JobPortal.Security.JwtUtil;
 import com.example.JobPortal.Service.MinioService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -54,32 +55,43 @@ public class UserController {
             @RequestParam(required = false) MultipartFile resume,
             HttpServletRequest request) {
 
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(401).body("Unauthorized");
+        try {
+            // 1. Extract JWT from header
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized: Missing token");
+            }
+
+            String jwtToken = authHeader.substring(7);
+            String email = jwtUtil.getUserEmailFromToken(jwtToken);
+
+            // 2. Find user
+            Optional<User> optionalUser = userRepository.findByEmail(email);
+            if (optionalUser.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+            }
+
+            User user = optionalUser.get();
+
+            // 3. Update fields
+            user.setMobileNo(mobileNo);
+            user.setLocation(location);
+
+            // 4. If resume is present, upload and update resumeUrl
+            if (resume != null && !resume.isEmpty()) {
+                String resumeUrl = minioService.uploadFile(resume, user.getName()); // <-- use user name or ID for naming
+                user.setResumeurl(resumeUrl);
+            }
+
+            // 5. Save user
+            userRepository.save(user);
+
+            return ResponseEntity.ok().body(Map.of("message", "Details updated successfully"));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Update failed", "details", e.getMessage()));
         }
-
-        String jwtToken = authHeader.substring(7);
-        String email = jwtUtil.getUserEmailFromToken(jwtToken);
-
-        Optional<User> optionalUser = userRepository.findByEmail(email);
-        if (optionalUser.isEmpty()) {
-            return ResponseEntity.status(404).body("User not found");
-        }
-
-        User user = optionalUser.get();
-
-        user.setMobileNo(mobileNo);
-        user.setLocation(location);
-
-        if (resume != null && !resume.isEmpty()) {
-            String resumeUrl = minioService.uploadFile(resume);
-            user.setResumeurl(resumeUrl);
-        }
-
-        userRepository.save(user);
-
-        return ResponseEntity.ok().body(Map.of("message", "Details updated successfully"));
     }
 
     @PostMapping("/change-password")

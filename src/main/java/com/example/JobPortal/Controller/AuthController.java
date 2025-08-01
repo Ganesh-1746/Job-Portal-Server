@@ -48,7 +48,6 @@ public class AuthController {
     @Autowired
     private UserRepo userRepo;
 
-
     @PostMapping("/user/register")
     public ResponseEntity<?> register(@RequestParam String name,
                                       @RequestParam String email,
@@ -60,7 +59,7 @@ public class AuthController {
             String resumeUrl = null;
 
             if (resume != null && !resume.isEmpty()) {
-                resumeUrl = minioService.uploadFile(resume);
+                resumeUrl = minioService.uploadFile(resume, name); // <-- FIXED: Added second argument
             }
 
             User savedUser = userService.register(name, email, mobileNo, location, password, resumeUrl);
