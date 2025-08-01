@@ -9,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class MinioService {
@@ -21,6 +22,7 @@ public class MinioService {
 
     public String uploadFile(MultipartFile file) {
         try {
+            // Ensure bucket exists
             boolean found = minioClient.bucketExists(
                     BucketExistsArgs.builder().bucket(bucketName).build());
 
@@ -28,27 +30,32 @@ public class MinioService {
                 minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
             }
 
+            // Unique file name
             String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
 
-            minioClient.putObject(PutObjectArgs.builder()
-                    .bucket(bucketName)
-                    .object(fileName)
-                    .stream(file.getInputStream(), file.getSize(), -1)
-                    .contentType(file.getContentType())
-                    .build());
+            // Upload file
+            try (InputStream inputStream = file.getInputStream()) {
+                minioClient.putObject(PutObjectArgs.builder()
+                        .bucket(bucketName)
+                        .object(fileName)
+                        .stream(inputStream, file.getSize(), -1)
+                        .contentType(file.getContentType())
+                        .build());
+            }
 
-            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+            // Generate presigned URL valid for 7 days
+            String presignedUrl = minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .bucket(bucketName)
                     .object(fileName)
                     .method(Method.GET)
+                    .expiry(7, TimeUnit.DAYS)
                     .build());
+
+            return presignedUrl;
 
         } catch (Exception e) {
             e.printStackTrace();
-
-            throw new RuntimeException("MinIO file upload failed: " + e.getMessage());
+            throw new RuntimeException("❌ MinIO file upload failed: " + e.getMessage());
         }
     }
 }
-
-

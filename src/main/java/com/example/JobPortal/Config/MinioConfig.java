@@ -20,7 +20,7 @@ public class MinioConfig {
     @Bean
     public MinioClient minioClient() {
         return MinioClient.builder()
-                .endpoint(minioUrl)
+                .endpoint(minioUrl)  // e.g. https://interchange.proxy.rlwy.net:41574
                 .credentials(accessKey, secretKey)
                 .build();
     }
