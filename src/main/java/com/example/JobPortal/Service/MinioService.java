@@ -18,44 +18,63 @@ public class MinioService {
     private MinioClient minioClient;
 
     @Value("${minio.bucket-name}")
-    private String bucketName;
+    private String primaryBucketName; // should be set as "resume" in properties
+
+    private final String fallbackBucketName = "resumes"; // legacy bucket
 
     public String uploadFile(MultipartFile file) {
-        try {
-            // Ensure bucket exists
-            boolean found = minioClient.bucketExists(
-                    BucketExistsArgs.builder().bucket(bucketName).build());
+        String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
 
-            if (!found) {
-                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
-            }
+        try (InputStream inputStream = file.getInputStream()) {
+            // Try primary bucket first
+            ensureBucketExists(primaryBucketName);
 
-            // Unique file name
-            String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+            // Upload to primary bucket
+            minioClient.putObject(PutObjectArgs.builder()
+                    .bucket(primaryBucketName)
+                    .object(fileName)
+                    .stream(inputStream, file.getSize(), -1)
+                    .contentType(file.getContentType())
+                    .build());
 
-            // Upload file
+            return generatePresignedUrl(primaryBucketName, fileName);
+
+        } catch (Exception primaryEx) {
+            System.out.println("⚠️ Primary bucket failed. Trying fallback bucket...");
+
             try (InputStream inputStream = file.getInputStream()) {
+                // Try fallback bucket
+                ensureBucketExists(fallbackBucketName);
+
                 minioClient.putObject(PutObjectArgs.builder()
-                        .bucket(bucketName)
+                        .bucket(fallbackBucketName)
                         .object(fileName)
                         .stream(inputStream, file.getSize(), -1)
                         .contentType(file.getContentType())
                         .build());
+
+                return generatePresignedUrl(fallbackBucketName, fileName);
+
+            } catch (Exception fallbackEx) {
+                fallbackEx.printStackTrace();
+                throw new RuntimeException("❌ Upload failed to both buckets: " + fallbackEx.getMessage());
             }
-
-            // Generate presigned URL valid for 7 days
-            String presignedUrl = minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
-                    .bucket(bucketName)
-                    .object(fileName)
-                    .method(Method.GET)
-                    .expiry(7, TimeUnit.DAYS)
-                    .build());
-
-            return presignedUrl;
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("❌ MinIO file upload failed: " + e.getMessage());
         }
+    }
+
+    private void ensureBucketExists(String bucketName) throws Exception {
+        boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build());
+        if (!exists) {
+            minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+        }
+    }
+
+    private String generatePresignedUrl(String bucket, String objectName) throws Exception {
+        return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                .bucket(bucket)
+                .object(objectName)
+                .method(Method.GET)
+                .expiry(7, TimeUnit.DAYS)
+                .build());
     }
 }
