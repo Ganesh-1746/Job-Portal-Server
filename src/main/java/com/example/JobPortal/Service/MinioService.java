@@ -2,6 +2,7 @@ package com.example.JobPortal.Service;
 
 import io.minio.*;
 import io.minio.http.Method;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -24,9 +25,26 @@ public class MinioService {
 
     private final String fallbackBucketName = "resumes"; // legacy bucket
 
+    @PostConstruct
+    public void init() {
+        try {
+            boolean found = minioClient.bucketExists(
+                    BucketExistsArgs.builder().bucket(primaryBucketName).build()
+            );
+            if (!found) {
+                minioClient.makeBucket(
+                        MakeBucketArgs.builder().bucket(primaryBucketName).build()
+                );
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Could not initialize bucket: " + e.getMessage());
+        }
+    }
+
     public String uploadFile(MultipartFile file, String username) {
         try {
             String fileName = UUID.randomUUID() + "_" + URLEncoder.encode(file.getOriginalFilename(), StandardCharsets.UTF_8);
+            System.out.println("Uploading file to MinIO: " + fileName);
             String bucketName = "resumes";
 
             // Ensure bucket exists
@@ -52,6 +70,7 @@ public class MinioService {
                             .build());
 
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException("Failed to upload resume: " + e.getMessage(), e);
         }
     }
