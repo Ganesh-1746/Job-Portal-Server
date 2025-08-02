@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -21,33 +20,29 @@ public class MinioService {
     private MinioClient minioClient;
 
     @Value("${minio.bucket-name}")
-    private String primaryBucketName; // should be set as "resume" in properties
-
-    private final String fallbackBucketName = "resumes"; // legacy bucket
+    private String bucketName; // should be "resume"
 
     @PostConstruct
     public void init() {
         try {
-            boolean found = minioClient.bucketExists(BucketExistsArgs.builder().bucket(primaryBucketName).build());
+            boolean found = minioClient.bucketExists(
+                    BucketExistsArgs.builder().bucket(bucketName).build());
             if (!found) {
-                minioClient.makeBucket(MakeBucketArgs.builder().bucket(primaryBucketName).build());
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
             }
         } catch (Exception e) {
             System.err.println("⚠️ MinIO bucket check failed: " + e.getMessage());
-            // optionally: don't throw to prevent crash
         }
     }
 
     public String uploadFile(MultipartFile file, String username) {
         try {
-            String fileName = UUID.randomUUID() + "_" + URLEncoder.encode(file.getOriginalFilename(), StandardCharsets.UTF_8);
+            String fileName = UUID.randomUUID() + "_" + URLEncoder.encode(
+                    file.getOriginalFilename(), StandardCharsets.UTF_8);
             System.out.println("Uploading file to MinIO: " + fileName);
-            String bucketName = "resumes";
 
             // Ensure bucket exists
-            if (!minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build())) {
-                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
-            }
+            ensureBucketExists(bucketName);
 
             // Upload the file
             minioClient.putObject(PutObjectArgs.builder()
@@ -58,20 +53,13 @@ public class MinioService {
                     .build());
 
             // Generate a signed URL valid for 7 days
-            return minioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .method(Method.GET)
-                            .bucket(bucketName)
-                            .object(fileName)
-                            .expiry(7 * 24 * 60 * 60) // 7 days in seconds
-                            .build());
+            return generatePresignedUrl(bucketName, fileName);
 
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException("Failed to upload resume: " + e.getMessage(), e);
         }
     }
-
 
     private void ensureBucketExists(String bucketName) throws Exception {
         boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build());
