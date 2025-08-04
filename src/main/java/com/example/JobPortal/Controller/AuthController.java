@@ -156,6 +156,11 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/health")
+    public String healthCheck() {
+        return "Backend is alive";
+    }
+
     public static class InvalidEmailException extends RuntimeException {
         public InvalidEmailException(String message) {
             super(message);

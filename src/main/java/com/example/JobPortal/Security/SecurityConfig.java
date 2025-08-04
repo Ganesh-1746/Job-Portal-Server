@@ -45,6 +45,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/user/login").permitAll()
                         .requestMatchers("/api/admin/login").permitAll()
                         .requestMatchers("/api/refresh-token").permitAll()
+                        .requestMatchers("/api/health").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/user/**").hasRole("USER")
                         .anyRequest().authenticated()
